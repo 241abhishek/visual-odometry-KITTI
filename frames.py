@@ -83,6 +83,47 @@ def calc_depth_map(disp_left, k_left, t_left, t_right):
 
     return depth_map
 
+def plot_depth_hist(depth_map):
+    """
+    Generate a histogram of the depth map.
+
+    Args:
+        depth_map (numpy.ndarray): the depth map.
+    """
+
+    plt.figure(figsize=(10, 10))
+    plt.hist(depth_map.flatten())
+    plt.title('Depth map histogram')
+    plt.show(block=False)
+    plt.pause(5)
+    plt.close()
+
+def stereo_2_depth(img_left, img_right, P0, P1):
+    """
+    Generate the depth map from a stereo image pair.
+
+    Args:
+        img_left (numpy.ndarray): the left stereo image.
+        img_right (numpy.ndarray): the right stereo image.
+        P0 (numpy.ndarray): the projection matrix of the left camera.
+        P1 (numpy.ndarray): the projection matrix of the right camera.
+    
+    Returns:
+        numpy.ndarray: the depth map.
+    """
+
+    # compute the disparity map
+    disparity = compute_left_disparity_map(img_left, img_right)
+
+    # decompose the projection matrices
+    k_left, r_left, t_left = decompose_projection_matrix(P0)
+    k_right, r_right, t_right = decompose_projection_matrix(P1)
+
+    # calculate the depth map
+    depth_map = calc_depth_map(disparity, k_left, t_left, t_right)
+
+    return depth_map
+
 
 def main(test_function):
     """
@@ -132,12 +173,27 @@ def main(test_function):
         plt.pause(5)
         plt.close()
 
+        # plot the depth map histogram
+        # plot_depth_hist(depth_map)
+
+    if test_function == 'stereo_2_depth':
+        from data import Dataset_Handler
+        # test the stereo_2_depth function
+        dataset = Dataset_Handler('00')
+        depth_map = stereo_2_depth(dataset.first_image_left, dataset.first_image_right, dataset.P0, dataset.P1)
+        plt.figure(figsize=(10, 10))
+        plt.imshow(depth_map)
+        plt.title('Depth map')
+        plt.show(block=False)
+        plt.pause(5)
+        plt.close()
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
                         default='compute_left_disparity_map',
-                        choices=['compute_left_disparity_map', 'decompose_projection_matrix', 'calc_depth_map'], 
+                        choices=['compute_left_disparity_map', 'decompose_projection_matrix', 'calc_depth_map', 'stereo_2_depth'], 
                         help='The function to test.')
 
     args = parser.parse_args()
