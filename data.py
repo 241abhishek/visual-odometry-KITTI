@@ -9,7 +9,36 @@ import cv2
 import os
 
 class Dataset_Handler():
+    """
+    Class to handle data in the KITTI dataset.
+
+    Attributes:
+        seq_dir (str): the directory of the sequence.
+        pose_dir (str): the directory of the ground truth poses.
+        left_image_files (list): list of file names of the left images.
+        right_image_files (list): list of file names of the right images.
+        num_frames (int): number of frames in the sequence.
+        P0 (numpy.ndarray): the projection matrix for the left grayscale camera.
+        P1 (numpy.ndarray): the projection matrix for the right grayscale camera.
+        P2 (numpy.ndarray): the projection matrix for the right rgb camera.
+        P3 (numpy.ndarray): the projection matrix for the right rgb camera.
+        times (numpy.ndarray): array of timestamps for each frame.
+        gt (numpy.ndarray): array of ground truth poses for each frame.
+        images_left (generator): generator to load left grayscale camera images sequentially.
+        images_right (generator): generator to load right grayscale camera images sequentially.
+        img_height (int): height of the images.
+        img_width (int): width of the images.
+        first_image_left (numpy.ndarray): the first left image in the sequence.
+        first_image_right (numpy.ndarray): the first right image in the sequence.
+        second_image_left (numpy.ndarray): the second left image in the sequence
+    """    
     def __init__(self, sequence):
+        """
+        Initialize the dataset handler.
+
+        Args:
+            sequence (str): the sequence number of the dataset to load.
+        """
 
         # set file paths and get ground truth poses
         self.seq_dir = os.path.join('../dataset/sequences', sequence)
@@ -47,6 +76,9 @@ class Dataset_Handler():
         self.img_height, self.img_width = self.first_image_left.shape
 
     def reset_frames(self):
+        """
+        Reset the generators to the first frame.
+        """
         # reset the generators to the first frame
         self.images_left = (cv2.imread(os.path.join(self.seq_dir, 'image_0', img), cv2.IMREAD_GRAYSCALE) for img in self.left_image_files)
         self.images_right = (cv2.imread(os.path.join(self.seq_dir, 'image_1', img), cv2.IMREAD_GRAYSCALE) for img in self.right_image_files)
