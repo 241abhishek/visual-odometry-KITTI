@@ -133,49 +133,6 @@ def main(test_function):
         test_function (str): the function to test.
     """
 
-    if test_function == 'compute_left_disparity_map':
-        # test the compute_left_disparity_map function
-        img_left = cv2.imread('../dataset/sequences/00/image_0/000000.png', cv2.IMREAD_GRAYSCALE)
-        img_right = cv2.imread('../dataset/sequences/00/image_1/000000.png', cv2.IMREAD_GRAYSCALE)
-        disparity = compute_left_disparity_map(img_left, img_right, verbose=True)
-        plt.figure(figsize=(10, 10))
-        plt.imshow(disparity)
-        plt.title('Disparity map')
-        plt.show(block=False)
-        plt.pause(5)
-        plt.close()
-    
-    if test_function == 'decompose_projection_matrix':
-        # test the decompose_projection_matrix function
-        p = np.array([[7.215377e+02, 0.000000e+00, 6.095593e+02, 4.485728e+01],
-                      [0.000000e+00, 7.215377e+02, 1.728540e+02, 2.163791e-01],
-                      [0.000000e+00, 0.000000e+00, 1.000000e+00, 2.745884e-03]])
-        k, r, t = decompose_projection_matrix(p)
-        print('Intrinsic matrix:')
-        print(k)
-        print('Rotation matrix:')
-        print(r)
-        print('Translation vector:')
-        print(t)
-
-    if test_function == 'calc_depth_map':
-        from data import Dataset_Handler
-        # test the calc_depth_map function
-        dataset = Dataset_Handler('00')
-        disp_left = compute_left_disparity_map(dataset.first_image_left, dataset.first_image_right)
-        k_left, r_left, t_left = decompose_projection_matrix(dataset.P0)
-        k_right, r_right, t_right = decompose_projection_matrix(dataset.P1)
-        depth_map = calc_depth_map(disp_left, k_left, t_left, t_right)
-        plt.figure(figsize=(10, 10))
-        plt.imshow(depth_map)
-        plt.title('Depth map')
-        plt.show(block=False)
-        plt.pause(5)
-        plt.close()
-
-        # plot the depth map histogram
-        # plot_depth_hist(depth_map)
-
     if test_function == 'stereo_2_depth':
         from data import Dataset_Handler
         # test the stereo_2_depth function
@@ -192,8 +149,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
-                        default='compute_left_disparity_map',
-                        choices=['compute_left_disparity_map', 'decompose_projection_matrix', 'calc_depth_map', 'stereo_2_depth'], 
+                        default='stereo_2_depth',
+                        choices=['stereo_2_depth'], 
                         help='The function to test.')
 
     args = parser.parse_args()
