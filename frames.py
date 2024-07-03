@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-def compute_left_disparity_map(img_left, img_right, verbose=False):
+def compute_left_disparity_map(img_left, img_right, verbose=False, matcher_name='bm'):
     """
     Compute the disparity map from a stereo image pair.
 
@@ -15,15 +15,20 @@ def compute_left_disparity_map(img_left, img_right, verbose=False):
         img_left (numpy.ndarray): the left stereo image.
         img_right (numpy.ndarray): the right stereo image.
         verbose (bool, optional): tag to toggle debug information. Defaults to False.
+        matcher_name (str, optional): the name of the matcher to use. Defaults to 'bm'.
 
     Returns:
         numpy.ndarray: the disparity map.
     """
 
     # compute the disparity map
-    matcher = cv2.StereoSGBM_create(numDisparities=96, minDisparity=0, blockSize=11,
-                                    P1 = 8*3*6**2, P2 = 32*3*6**2,
-                                    mode = cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+
+    if matcher_name == 'bm':
+        matcher = cv2.StereoBM_create(numDisparities=96, blockSize=11)
+    elif matcher_name == 'sgbm':
+        matcher = cv2.StereoSGBM_create(numDisparities=96, minDisparity=0, blockSize=11,
+                                        P1 = 8*3*6**2, P2 = 32*3*6**2,
+                                        mode = cv2.STEREO_SGBM_MODE_SGBM_3WAY)
 
     start = datetime.datetime.now()
     disparity = matcher.compute(img_left, img_right).astype(np.float32) / 16.0
@@ -98,7 +103,7 @@ def plot_depth_hist(depth_map):
     plt.pause(5)
     plt.close()
 
-def stereo_2_depth(img_left, img_right, P0, P1):
+def stereo_2_depth(img_left, img_right, P0, P1, matcher_name='bm'):
     """
     Generate the depth map from a stereo image pair.
 
@@ -113,7 +118,7 @@ def stereo_2_depth(img_left, img_right, P0, P1):
     """
 
     # compute the disparity map
-    disparity = compute_left_disparity_map(img_left, img_right)
+    disparity = compute_left_disparity_map(img_left, img_right, matcher_name=matcher_name)
 
     # decompose the projection matrices
     k_left, r_left, t_left = decompose_projection_matrix(P0)
@@ -223,7 +228,7 @@ def main(test_function):
         from data import Dataset_Handler
         # test the stereo_2_depth function
         dataset = Dataset_Handler('00')
-        depth_map = stereo_2_depth(dataset.first_image_left, dataset.first_image_right, dataset.P0, dataset.P1)
+        depth_map = stereo_2_depth(dataset.first_image_left, dataset.first_image_right, dataset.P0, dataset.P1, matcher_name='sgbm')
         plt.figure(figsize=(10, 10))
         plt.imshow(depth_map)
         plt.title('Depth map')
