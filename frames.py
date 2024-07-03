@@ -124,6 +124,92 @@ def stereo_2_depth(img_left, img_right, P0, P1):
 
     return depth_map
 
+def extract_features(img, mask=None):
+    """
+    Find keypoints and descriptors in an image.
+
+    Args:
+        img (numpy.ndarray): the image to extract features from.
+        mask (numpy.ndarray, optional): the mask to apply to the image. Defaults to None.
+    
+    Returns:
+        kp (list): the keypoints.
+        des (list): the descriptors.
+    """
+
+    # create a SIFT detector object
+    sift = cv2.SIFT_create()
+
+    # find the keypoints and descriptors
+    kp, des = sift.detectAndCompute(img, mask)
+
+    return kp, des
+
+def match_features(des1, des2):
+    """
+    Match features between two sets of descriptors.
+
+    By default, this function uses the brute force, sorted matching, and returns 2 nearest neighbors.
+
+    Args:
+        des1 (list): the first set of descriptors.
+        des2 (list): the second set of descriptors.
+    
+    Returns:
+        matches (list): the matched features.
+    """
+
+    # create a BFMatcher object and match the features
+    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+    matches = bf.knnMatch(des1, des2, k=2)
+
+    # sort the matches based on distance
+    matches = sorted(matches, key = lambda x:x[0].distance)
+
+    return matches
+
+def filter_matches_distance(matches, threshold=0.5):
+    """
+    Filter matches based on the distance ratio.
+
+    Args:
+        matches (list): the matched features.
+        threshold (float, optional): the distance ratio threshold. Defaults to 0.75.
+    
+    Returns:
+        filtered_matches (list): the filtered matches.
+    """
+
+    # filter matches based on the distance ratio
+    filtered_matches = []
+    for m, n in matches:
+        if m.distance < threshold * n.distance:
+            filtered_matches.append(m)
+
+    return filtered_matches
+
+def visualize_matches(img1, img2, kp1, kp2, matches):
+    """
+    Visualize the matched features between two images.
+
+    Args:
+        img1 (numpy.ndarray): the first image.
+        img2 (numpy.ndarray): the second image.
+        kp1 (list): the keypoints of the first image.
+        kp2 (list): the keypoints of the second image.
+        matches (list): the matched features.
+    """
+
+    # draw the matches
+    img_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
+    # display the matches
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img_matches)
+    plt.title('Matches')
+    plt.show(block=False)
+    plt.pause(5)
+    plt.close()
 
 def main(test_function):
     """
@@ -145,12 +231,26 @@ def main(test_function):
         plt.pause(5)
         plt.close()
 
+    if test_function == 'visualize_matches':
+        from data import Dataset_Handler
+        # test the visualize_matches function
+        dataset = Dataset_Handler('00')
+        img_1 = dataset.first_image_left
+        img_2 = dataset.second_image_left
+        kp_1, des_1 = extract_features(img_1)
+        kp_2, des_2 = extract_features(img_2)
+        matches = match_features(des_1, des_2)
+        print('Number of matches before filtering:', len(matches))
+        matches = filter_matches_distance(matches, threshold=0.3)
+        print('Number of matches after filtering:', len(matches))
+        visualize_matches(img_1, img_2, kp_1, kp_2, matches)
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
                         default='stereo_2_depth',
-                        choices=['stereo_2_depth'], 
+                        choices=['stereo_2_depth', 'visualize_matches'], 
                         help='The function to test.')
 
     args = parser.parse_args()
