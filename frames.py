@@ -27,7 +27,7 @@ def compute_left_disparity_map(img_left, img_right, verbose=False, matcher_name=
         matcher = cv2.StereoBM_create(numDisparities=96, blockSize=11)
     elif matcher_name == 'sgbm':
         matcher = cv2.StereoSGBM_create(numDisparities=96, minDisparity=0, blockSize=11,
-                                        P1 = 8*3*6**2, P2 = 32*3*6**2,
+                                        P1 = 8*1*11**2, P2 = 32*1*11**2,
                                         mode = cv2.STEREO_SGBM_MODE_SGBM_3WAY)
 
     start = datetime.datetime.now()
@@ -222,7 +222,7 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
     Estimate the motion of the camera between two frames.
 
     Args:
-        match (cv2.DMatch): the matched feature.
+        match (list): the matched feature.
         kp1 (list): the keypoints of the first image.
         kp2 (list): the keypoints of the second image.
         k (numpy.ndarray): the intrinsic matrix.
@@ -242,8 +242,6 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
     # get the coordinates of the matched features
     image_points_1 = np.float32([kp1[m.queryIdx].pt for m in match])
     image_points_2 = np.float32([kp2[m.trainIdx].pt for m in match])
-
-    print(type(image_points_1))
 
     # extract the intrinsic parameters
     cx = k[0, 2]
@@ -280,6 +278,101 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
     rmat = cv2.Rodrigues(rvec)[0]
 
     return rmat, tvec, image_points_1, image_points_2
+
+def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False):
+    """
+    The full visual odometry pipeline.
+    
+    Args:
+        handler (Dataset_Handler): the dataset handler.
+        matcher_name (str, optional): the name of the matcher to use. Defaults to 'sgbm'.
+        filter_match_distance (float, optional): the distance ratio threshold. Defaults to 0.3.
+        subset (int, optional): the number of frames to process. Defaults to None.
+        plot (bool, optional): tag to toggle plotting. Defaults to False.
+    
+    Returns:
+        numpy.ndarray: the estimated poses.
+    """
+
+    # initialize the number of frames to process
+    if subset is not None:
+        num_frames = subset
+    else:
+        num_frames = handler.num_frames
+
+    if plot:
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=-20, azim=270)
+        xs = handler.gt[:, 0, 3]
+        ys = handler.gt[:, 1, 3]
+        zs = handler.gt[:, 2, 3]
+        ax.set_box_aspect([np.ptp(xs), np.ptp(ys), np.ptp(zs)])
+        ax.plot(xs, ys, zs, c='k')
+
+    # initialize the poses
+    trajectory = np.zeros((num_frames, 3, 4))
+    t_tot = np.eye(4)
+    trajectory[0] = t_tot[:3, :]
+
+    # initialize height and width
+    img_height = handler.img_height
+    img_width = handler.img_width
+
+    # decompose the projection matrices
+    k_left, r_left, t_left = decompose_projection_matrix(handler.P0)
+
+    # reset the frames 
+    handler.reset_frames()
+    image_plus1 = next(handler.images_left)
+
+    # iterate through all the frames in the sequence
+    # set the range to num_frames - 1 to avoid index out of bounds
+    # when processing 2 sequential frames
+    for i in range(num_frames - 1):
+        image_left = image_plus1
+        image_right = next(handler.images_right)
+
+        # get the next left camera iamge for visual odometry
+        image_plus1 = next(handler.images_left)
+
+        # compute the depth map
+        depth_map = stereo_2_depth(image_left, image_right, handler.P0, handler.P1, matcher_name=matcher_name)
+
+
+        # extract features from the images
+        kp1, des1 = extract_features(image_left)
+        kp2, des2 = extract_features(image_plus1)
+
+        # match the features
+        matches = match_features(des1, des2)
+
+        # filter the matches
+        matches = filter_matches_distance(matches, threshold=filter_match_distance)
+
+        # estimate the motion
+        rmat, tvec, image_points_1, image_points_2 = estimate_motion(matches, kp1, kp2, k_left, depth_map)
+
+        # update the trajectory
+        Tmat = np.eye(4)
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.flatten()
+        t_tot = t_tot.dot(np.linalg.inv(Tmat))
+
+        trajectory[i + 1] = t_tot[:3, :]
+
+        if plot:
+            xs = trajectory[:i + 2, 0, 3]
+            ys = trajectory[:i + 2, 1, 3]
+            zs = trajectory[:i + 2, 2, 3]
+            ax.plot(xs, ys, zs, c='chartreuse')
+            # plt.show()
+            plt.pause(1e-32)
+
+    if plot:
+        plt.close()
+
+    return trajectory
 
 def main(test_function):
     """
@@ -331,12 +424,19 @@ def main(test_function):
         print('Rotation matrix:', rmat.round(3))
         print('Translation vector:', tvec.round(3))
 
+    if test_function == 'visual_odometry':
+        from data import Dataset_Handler
+        # test the visual_odometry function
+        dataset = Dataset_Handler('00')
+        trajectory = visual_odometry(dataset, matcher_name='sgbm', filter_match_distance=0.3, subset=100, plot=True)
+        print('Estimated poses shape:', trajectory.shape)
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
                         default='stereo_2_depth',
-                        choices=['stereo_2_depth', 'visualize_matches', 'estimate_motion'], 
+                        choices=['stereo_2_depth', 'visualize_matches', 'estimate_motion', 'visual_odometry'], 
                         help='The function to test.')
 
     args = parser.parse_args()
