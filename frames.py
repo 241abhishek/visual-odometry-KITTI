@@ -112,8 +112,10 @@ def stereo_2_depth(img_left, img_right, P0, P1, matcher_name='bm'):
         img_right (numpy.ndarray): the right stereo image.
         P0 (numpy.ndarray): the projection matrix of the left camera.
         P1 (numpy.ndarray): the projection matrix of the right camera.
+        matcher_name (str, optional): the name of the matcher to use. Defaults to 'bm'.
     
     Returns:
+        numpy.ndarray: the disparity map.
         numpy.ndarray: the depth map.
     """
 
@@ -127,7 +129,7 @@ def stereo_2_depth(img_left, img_right, P0, P1, matcher_name='bm'):
     # calculate the depth map
     depth_map = calc_depth_map(disparity, k_left, t_left, t_right)
 
-    return depth_map
+    return disparity, depth_map
 
 def extract_features(img, mask=None):
     """
@@ -279,7 +281,7 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
 
     return rmat, tvec, image_points_1, image_points_2
 
-def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False):
+def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False, visualize=False):
     """
     The full visual odometry pipeline.
     
@@ -288,9 +290,11 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
         matcher_name (str, optional): the name of the matcher to use. Defaults to 'sgbm'.
         filter_match_distance (float, optional): the distance ratio threshold. Defaults to 0.3.
         subset (int, optional): the number of frames to process. Defaults to None.
-        plot (bool, optional): tag to toggle plotting. Defaults to False.
-    
+        plot (bool, optional): toggle 2D plot. Defaults to False.
+        visualize (bool, optional): toggle visualization of images. Defaults to False.
+
     Returns:
+        numpy.ndarray: the ground truth poses.
         numpy.ndarray: the estimated poses.
     """
 
@@ -300,24 +304,39 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
     else:
         num_frames = handler.num_frames
 
+    if plot and visualize:
+        visualize = False
+
     if plot:
+        # construct a 2d plot excluding the z axis
         fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.view_init(elev=-20, azim=270)
+        ax = fig.add_subplot(111)
         xs = handler.gt[:, 0, 3]
         ys = handler.gt[:, 1, 3]
-        zs = handler.gt[:, 2, 3]
-        ax.set_box_aspect([np.ptp(xs), np.ptp(ys), np.ptp(zs)])
-        ax.plot(xs, ys, zs, c='k')
+        ax.plot(xs, ys, c='k')
+        # set title and labels
+        ax.set_title('2D path visualization')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.legend(['Ground truth'])
+
+    if visualize:
+        # construct a 2d plot excluding the z axis
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(311)
+        xs = handler.gt[:, 0, 3]
+        ys = handler.gt[:, 1, 3]
+        ax.plot(xs, ys, c='k')
+        # set title and labels
+        ax.set_title('2D path visualization')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.legend(['Ground truth'])
 
     # initialize the poses
-    trajectory = np.zeros((num_frames, 3, 4))
+    estimated_trajectory = np.zeros((num_frames, 3, 4))
     t_tot = np.eye(4)
-    trajectory[0] = t_tot[:3, :]
-
-    # initialize height and width
-    img_height = handler.img_height
-    img_width = handler.img_width
+    estimated_trajectory[0] = t_tot[:3, :]
 
     # decompose the projection matrices
     k_left, r_left, t_left = decompose_projection_matrix(handler.P0)
@@ -333,16 +352,40 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
         image_left = image_plus1
         image_right = next(handler.images_right)
 
+        if visualize:
+            # display the left camera image
+            ax_1 = fig.add_subplot(312)
+            ax_1.imshow(image_left, cmap='gray')
+            ax_1.set_title('Grayscale Camera Image')
+
         # get the next left camera iamge for visual odometry
         image_plus1 = next(handler.images_left)
 
-        # compute the depth map
-        depth_map = stereo_2_depth(image_left, image_right, handler.P0, handler.P1, matcher_name=matcher_name)
+        disp, depth_map = stereo_2_depth(image_left, image_right, handler.P0, handler.P1, matcher_name=matcher_name)
 
+        # display the disparity map
+        if visualize:
+            ax_2 = fig.add_subplot(313)
+            # crop the disp map to remove non-overlapping regions
+            ax_2.imshow(disp[:, 96:]) # 96 is empirically determined
+            ax_2.set_title('Disparity map')
+
+        # display the depth map
+        # if visualize:
+        #     ax_2 = fig.add_subplot(313)
+        #     ax_2.imshow(depth_map)
+        #     ax_2.set_title('Depth map')
 
         # extract features from the images
         kp1, des1 = extract_features(image_left)
         kp2, des2 = extract_features(image_plus1)
+
+        # display the feature dectected in the first image
+        # if visualize and i%10 == 0:
+        #     ax_2 = fig.add_subplot(313)
+        #     kp_image = cv2.drawKeypoints(image_left, kp1, None)
+        #     ax_2.imshow(kp_image)
+        #     ax_2.set_title('Detected features')
 
         # match the features
         matches = match_features(des1, des2)
@@ -359,20 +402,28 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
         Tmat[:3, 3] = tvec.flatten()
         t_tot = t_tot.dot(np.linalg.inv(Tmat))
 
-        trajectory[i + 1] = t_tot[:3, :]
+        estimated_trajectory[i + 1] = t_tot[:3, :]
 
         if plot:
-            xs = trajectory[:i + 2, 0, 3]
-            ys = trajectory[:i + 2, 1, 3]
-            zs = trajectory[:i + 2, 2, 3]
-            ax.plot(xs, ys, zs, c='chartreuse')
-            # plt.show()
+            # plot the 2D path
+            xs = estimated_trajectory[:i + 2, 0, 3]
+            ys = estimated_trajectory[:i + 2, 1, 3]
+            ax.plot(xs, ys, c='chartreuse')
             plt.pause(1e-32)
+            ax.legend(['Ground truth', 'Estimated'])
 
-    if plot:
+        if visualize:
+            # plot the 2D path
+            xs = estimated_trajectory[:i + 2, 0, 3]
+            ys = estimated_trajectory[:i + 2, 1, 3]
+            ax.plot(xs, ys, c='chartreuse')
+            plt.pause(1e-32)
+            ax.legend(['Ground truth', 'Estimated'])
+
+    if plot or visualize:
         plt.close()
 
-    return trajectory
+    return handler.gt, estimated_trajectory
 
 def main(test_function):
     """
@@ -386,7 +437,7 @@ def main(test_function):
         from data import Dataset_Handler
         # test the stereo_2_depth function
         dataset = Dataset_Handler('00')
-        depth_map = stereo_2_depth(dataset.first_image_left, dataset.first_image_right, dataset.P0, dataset.P1, matcher_name='sgbm')
+        _, depth_map = stereo_2_depth(dataset.first_image_left, dataset.first_image_right, dataset.P0, dataset.P1, matcher_name='sgbm')
         plt.figure(figsize=(10, 10))
         plt.imshow(depth_map)
         plt.title('Depth map')
@@ -418,7 +469,7 @@ def main(test_function):
         kp_1, des_1 = extract_features(img_1)
         kp_2, des_2 = extract_features(img_2)
         matches = match_features(des_1, des_2)
-        depth_map = stereo_2_depth(img_1, img_r, dataset.P0, dataset.P1, matcher_name='sgbm')
+        _, depth_map = stereo_2_depth(img_1, img_r, dataset.P0, dataset.P1, matcher_name='sgbm')
         matches = filter_matches_distance(matches, threshold=0.3)
         rmat, tvec, image_points_1, image_points_2 = estimate_motion(matches, kp_1, kp_2, decompose_projection_matrix(dataset.P0)[0], depth_map)
         print('Rotation matrix:', rmat.round(3))

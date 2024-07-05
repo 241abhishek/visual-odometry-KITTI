@@ -22,10 +22,8 @@ def main(*args):
     print('Image dimensions:', dataset.img_height, dataset.img_width)
     
     # run visual odometry
-    poses = visual_odometry(dataset, plot=True)
+    ground_truth, estimated_trajectory = visual_odometry(dataset, visualize=True)
 
-    # # visualize the 3D path
-    # dataset.visualize_3d_path(poses)
 
 if __name__ == "__main__":
     main()
