@@ -216,6 +216,71 @@ def visualize_matches(img1, img2, kp1, kp2, matches):
     plt.pause(5)
     plt.close()
 
+
+def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
+    """
+    Estimate the motion of the camera between two frames.
+
+    Args:
+        match (cv2.DMatch): the matched feature.
+        kp1 (list): the keypoints of the first image.
+        kp2 (list): the keypoints of the second image.
+        k (numpy.ndarray): the intrinsic matrix.
+        depth_map (numpy.ndarray): the depth map.
+        max_depth (int, optional): the maximum depth. Defaults to 3000.
+
+    Returns:
+        numpy.ndarray: the rotation matrix.
+        numpy.ndarray: the translation vector.
+        numpy.ndarray: matched feature coordinates (u,v pixels) in the first image.
+        numpy.ndarray: matched feature coordinates (u,v pixels) in the second image.
+    """
+
+    rmat = np.eye(3)
+    tvec = np.zeros((3, 1))
+
+    # get the coordinates of the matched features
+    image_points_1 = np.float32([kp1[m.queryIdx].pt for m in match])
+    image_points_2 = np.float32([kp2[m.trainIdx].pt for m in match])
+
+    print(type(image_points_1))
+
+    # extract the intrinsic parameters
+    cx = k[0, 2]
+    cy = k[1, 2]
+    fx = k[0, 0]
+    fy = k[1, 1]
+
+    # calculate the 3D points
+    object_points = np.zeros((0, 3))
+    delete = []
+
+    for i, (u,v) in enumerate(image_points_1):
+        # get the depth
+        # flipped u and v because of the row, column convention in numpy
+        z = depth_map[int(v), int(u)]
+        
+        if z > max_depth:
+            delete.append(i)
+            continue
+
+        # calculate the 3D point
+        x = (u - cx) * z / fx
+        y = (v - cy) * z / fy
+        object_points = np.vstack((object_points, np.array([x, y, z])))
+
+    # remove points with depth greater than the maximum depth
+    image_points_1 = np.delete(image_points_1, delete, axis=0)
+    image_points_2 = np.delete(image_points_2, delete, axis=0)
+
+    # estimate the motion using the PnP RANSAC algorithm
+    _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image_points_2, k, None)
+
+    # convert the rotation vector to a rotation matrix
+    rmat = cv2.Rodrigues(rvec)[0]
+
+    return rmat, tvec, image_points_1, image_points_2
+
 def main(test_function):
     """
     Main function to test the utility functions.
@@ -250,12 +315,28 @@ def main(test_function):
         print('Number of matches after filtering:', len(matches))
         visualize_matches(img_1, img_2, kp_1, kp_2, matches)
 
+    if test_function == 'estimate_motion':
+        from data import Dataset_Handler
+        # test the estimate_motion function
+        dataset = Dataset_Handler('00')
+        img_1 = dataset.first_image_left
+        img_2 = dataset.second_image_left
+        img_r = dataset.first_image_right
+        kp_1, des_1 = extract_features(img_1)
+        kp_2, des_2 = extract_features(img_2)
+        matches = match_features(des_1, des_2)
+        depth_map = stereo_2_depth(img_1, img_r, dataset.P0, dataset.P1, matcher_name='sgbm')
+        matches = filter_matches_distance(matches, threshold=0.3)
+        rmat, tvec, image_points_1, image_points_2 = estimate_motion(matches, kp_1, kp_2, decompose_projection_matrix(dataset.P0)[0], depth_map)
+        print('Rotation matrix:', rmat.round(3))
+        print('Translation vector:', tvec.round(3))
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
                         default='stereo_2_depth',
-                        choices=['stereo_2_depth', 'visualize_matches'], 
+                        choices=['stereo_2_depth', 'visualize_matches', 'estimate_motion'], 
                         help='The function to test.')
 
     args = parser.parse_args()
