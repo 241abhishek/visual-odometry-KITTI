@@ -6,6 +6,7 @@ import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+from tqdm import tqdm
 
 def compute_left_disparity_map(img_left, img_right, verbose=False, matcher_name='bm'):
     """
@@ -348,7 +349,7 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
     # iterate through all the frames in the sequence
     # set the range to num_frames - 1 to avoid index out of bounds
     # when processing 2 sequential frames
-    for i in range(num_frames - 1):
+    for i in tqdm(range(num_frames - 1)):
         image_left = image_plus1
         image_right = next(handler.images_right)
 

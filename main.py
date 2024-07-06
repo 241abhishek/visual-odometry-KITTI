@@ -22,8 +22,10 @@ def main(*args):
     print('Image dimensions:', dataset.img_height, dataset.img_width)
     
     # run visual odometry
-    ground_truth, estimated_trajectory = visual_odometry(dataset, visualize=True)
+    ground_truth, estimated_trajectory = visual_odometry(dataset, plot=True, visualize=False, subset=100)
 
+    print('Ground truth shape:', ground_truth.shape)
+    print('Estimated trajectory shape:', estimated_trajectory.shape)
 
 if __name__ == "__main__":
     main()
