@@ -312,21 +312,24 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
     if plot and visualize:
         visualize = False
 
-    if plot:
-        # construct a 2d plot excluding the z axis
-        fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(111)
-        xs = handler.gt[:, 0, 3]
-        ys = handler.gt[:, 1, 3]
-        ax.plot(xs, ys, c='k')
-        # set title and labels
-        ax.set_title('2D path visualization')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.legend(['Ground truth'])
+    if not plot and not visualize:
+        plt.ioff()
+
+    # construct a 2d plot excluding the z axis
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111)
+    xs = handler.gt[:, 0, 3]
+    ys = handler.gt[:, 1, 3]
+    ax.plot(xs, ys, c='k')
+    # set title and labels
+    ax.set_title('2D path visualization')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.legend(['Ground truth'])
 
     if visualize:
         # construct a 2d plot excluding the z axis
+        plt.close(fig)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(311)
         xs = handler.gt[:, 0, 3]
@@ -409,15 +412,37 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
 
         estimated_trajectory[i + 1] = t_tot[:3, :]
 
+        # plot the 2D path
+        xs = estimated_trajectory[:i + 2, 0, 3]
+        ys = estimated_trajectory[:i + 2, 1, 3]
+        ax.plot(xs, ys, c='chartreuse')
         if plot:
-            # plot the 2D path
-            xs = estimated_trajectory[:i + 2, 0, 3]
-            ys = estimated_trajectory[:i + 2, 1, 3]
-            ax.plot(xs, ys, c='chartreuse')
             plt.pause(1e-32)
-            ax.legend(['Ground truth', 'Estimated'])
-            if save:
-                plt.savefig(f'../results/{i}.png')
+        ax.legend(['Ground truth', 'Estimated'])
+        
+        if save:
+            plt.savefig(f'../results/path/{i}.png')
+
+            # save the left camera image
+            plt.imsave(f'../results/gray_image/{i}.png', image_left, cmap='gray')
+
+            # save the disparity map
+            plt.imsave(f'../results/disp_image/{i}.png', disp[:, 96:])
+
+            # draw the keypoints on the left image
+            kp_image = cv2.drawKeypoints(image_left, kp1, None)
+            plt.imsave(f'../results/kp_image/{i}.png', kp_image)
+
+            # save the depth map
+            # calculate the max value below 200
+            depth_map = depth_map[:, 96:]
+            depth_map_max = np.max(depth_map[depth_map < 200])
+            depth_map[depth_map > 200] = depth_map_max
+            plt.imsave(f'../results/depth_image/{i}.png', depth_map)
+
+            # draw the matches and save the image
+            img_matches = cv2.drawMatches(image_left, kp1, image_plus1, kp2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            plt.imsave(f'../results/matches_image/{i}.png', img_matches)
 
         if visualize:
             # plot the 2D path
@@ -443,28 +468,87 @@ def create_animation(directory, output_file, fps=10):
     """
 
     # get list of images
-    image_files = sorted(os.listdir(directory), key=lambda x: int(x.split('.')[0]))
-    
-    # create a figure
-    fig, ax = plt.subplots(figsize=(10, 10))
-    
-    # function to update the figure
-    def update(frame):
-        ax.clear()
-        img_path = os.path.join(directory, image_files[frame])
-        img = plt.imread(img_path)
-        ax.imshow(img)
-        ax.axis('off')  # Turn off axis labels
-        return [ax]
-    
-    # create the animation
-    ani = animation.FuncAnimation(fig, update, frames=len(image_files), interval=1000/fps, blit=False)
-    
-    # save the animation
-    ani.save(output_file, fps=fps, extra_args=['-vcodec', 'libx264'])
-    plt.close(fig)
-    print('Animation saved successfully!')
+    plots_filepath = os.path.join(directory, 'path')
+    plot_images = sorted(os.listdir(plots_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(plots_filepath, plot_images[0]))
+    plot_figsize = (img.width / 100, img.height / 100)
 
+    gray_filepath = os.path.join(directory, 'gray_image')
+    gray_images = sorted(os.listdir(gray_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(gray_filepath, gray_images[0]))
+    gray_figsize = (img.width / 100, img.height / 100)
+
+    disp_filepath = os.path.join(directory, 'disp_image')
+    disp_images = sorted(os.listdir(disp_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(disp_filepath, disp_images[0]))
+    disp_figsize = (img.width / 100, img.height / 100)
+
+    kp_filepath = os.path.join(directory, 'kp_image')
+    kp_images = sorted(os.listdir(kp_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(kp_filepath, kp_images[0]))
+    kp_figsize = (img.width / 100, img.height / 100)
+
+    depth_filepath = os.path.join(directory, 'depth_image')
+    depth_images = sorted(os.listdir(depth_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(depth_filepath, depth_images[0]))
+    depth_figsize = (img.width / 100, img.height / 100)
+
+    matches_filepath = os.path.join(directory, 'matches_image')
+    matches_images = sorted(os.listdir(matches_filepath), key=lambda x: int(x.split('.')[0]))
+    # determine size for the figure
+    img = Image.open(os.path.join(matches_filepath, matches_images[0]))
+    matches_figsize = (img.width / 100, img.height / 100)
+
+    def animation_func(filepath, figsize, images, fig_title, suffix, fps):
+        # create a figure
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+
+        # function to update the figure
+        def update(frame):
+            ax.clear()
+            img_path = os.path.join(filepath, images[frame])
+            img = plt.imread(img_path)
+            ax.imshow(img)
+            ax.axis('off')
+            if fig_title:
+                ax.set_title(fig_title)
+            return [ax]
+        
+        # create the animation
+        ani = animation.FuncAnimation(fig, update, frames=len(images), interval=1000/fps, blit=False)
+
+        # save the animation
+        ani.save(output_file.replace('.mp4', f'_{suffix}.mp4'), fps=fps, extra_args=['-vcodec', 'libx264'])
+        plt.close(fig)
+        if fig_title:
+            print(f'{fig_title} animation saved successfully!')
+        else:
+            print(f'{suffix.title()} animation saved successfully!')
+
+
+    # create the path animation
+    animation_func(plots_filepath, plot_figsize, plot_images, None, 'path', fps)
+
+    # create the grayscale image animation
+    animation_func(gray_filepath, gray_figsize, gray_images, 'Grayscale Camera Image', 'gray', fps)
+
+    # create the disparity image animation
+    animation_func(disp_filepath, disp_figsize, disp_images, 'Disparity Map', 'disp', fps)
+
+    # create the keypoints image animation
+    animation_func(kp_filepath, kp_figsize, kp_images, 'Detected Features', 'kp', fps)
+
+    # create the depth image animation
+    animation_func(depth_filepath, depth_figsize, depth_images, 'Depth Map', 'depth', fps)
+
+    # create the matches image animation
+    animation_func(matches_filepath, matches_figsize, matches_images, 'Matched Features', 'matches', fps)
 
 def main(test_function):
     """
@@ -523,12 +607,16 @@ def main(test_function):
         trajectory = visual_odometry(dataset, matcher_name='sgbm', filter_match_distance=0.3, subset=100, plot=True)
         print('Estimated poses shape:', trajectory.shape)
 
+    if test_function == 'create_animation':
+        # test the create_animation function
+        create_animation('../results', '../animation.mp4', fps=10)
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Utility functions to manipulate image frames.')
     parser.add_argument('--test_function', type=str,
                         default='stereo_2_depth',
-                        choices=['stereo_2_depth', 'visualize_matches', 'estimate_motion', 'visual_odometry'], 
+                        choices=['stereo_2_depth', 'visualize_matches', 'estimate_motion', 'visual_odometry', 'create_animation'], 
                         help='The function to test.')
 
     args = parser.parse_args()
