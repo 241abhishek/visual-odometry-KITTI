@@ -5,8 +5,11 @@ import cv2
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from PIL import Image
 import argparse
 from tqdm import tqdm
+import os
 
 def compute_left_disparity_map(img_left, img_right, verbose=False, matcher_name='bm'):
     """
@@ -282,7 +285,7 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
 
     return rmat, tvec, image_points_1, image_points_2
 
-def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False, visualize=False):
+def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False, visualize=False, save=False):
     """
     The full visual odometry pipeline.
     
@@ -293,6 +296,7 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
         subset (int, optional): the number of frames to process. Defaults to None.
         plot (bool, optional): toggle 2D plot. Defaults to False.
         visualize (bool, optional): toggle visualization of images. Defaults to False.
+        save (bool, optional): toggle saving the images. Defaults to False.
 
     Returns:
         numpy.ndarray: the ground truth poses.
@@ -412,6 +416,8 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
             ax.plot(xs, ys, c='chartreuse')
             plt.pause(1e-32)
             ax.legend(['Ground truth', 'Estimated'])
+            if save:
+                plt.savefig(f'../results/{i}.png')
 
         if visualize:
             # plot the 2D path
@@ -425,6 +431,40 @@ def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, sub
         plt.close()
 
     return handler.gt, estimated_trajectory
+
+def create_animation(directory, output_file, fps=10):
+    """
+    Create an animation from a sequence of images.
+
+    Args:
+        directory (str): the directory containing the images.
+        output_file (str): the output file name.
+        fps (int, optional): the frames per second. Defaults to 10.
+    """
+
+    # get list of images
+    image_files = sorted(os.listdir(directory), key=lambda x: int(x.split('.')[0]))
+    
+    # create a figure
+    fig, ax = plt.subplots(figsize=(10, 10))
+    
+    # function to update the figure
+    def update(frame):
+        ax.clear()
+        img_path = os.path.join(directory, image_files[frame])
+        img = plt.imread(img_path)
+        ax.imshow(img)
+        ax.axis('off')  # Turn off axis labels
+        return [ax]
+    
+    # create the animation
+    ani = animation.FuncAnimation(fig, update, frames=len(image_files), interval=1000/fps, blit=False)
+    
+    # save the animation
+    ani.save(output_file, fps=fps, extra_args=['-vcodec', 'libx264'])
+    plt.close(fig)
+    print('Animation saved successfully!')
+
 
 def main(test_function):
     """
