@@ -111,7 +111,6 @@ The system generates:
 
 ## Future Improvements
 
-- Implement loop closure detection
 - Integrate with mapping algorithms for full SLAM
 - Extend support for other datasets
 - Optimize for real-time performance
