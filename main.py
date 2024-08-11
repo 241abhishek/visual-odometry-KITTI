@@ -22,7 +22,7 @@ def main(*args):
     print('Image dimensions:', dataset.img_height, dataset.img_width)
     
     # run visual odometry
-    ground_truth, estimated_trajectory = visual_odometry(dataset, plot=True, visualize=False, subset=100, save=True)
+    ground_truth, estimated_trajectory = visual_odometry(dataset, plot=True, visualize=False, matcher_name="sgbm", subset=None, save=True)
 
 if __name__ == "__main__":
     main()

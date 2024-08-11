@@ -285,7 +285,7 @@ def estimate_motion(match, kp1, kp2, k, depth_map, max_depth=3000):
 
     return rmat, tvec, image_points_1, image_points_2
 
-def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.3, subset=None, plot=False, visualize=False, save=False):
+def visual_odometry(handler, matcher_name='sgbm', filter_match_distance=0.25, subset=None, plot=False, visualize=False, save=False):
     """
     The full visual odometry pipeline.
     
@@ -622,4 +622,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args.test_function)
-
