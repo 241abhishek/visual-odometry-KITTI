@@ -2,6 +2,12 @@
 
 This project implements a visual odometry pipeline using stereo images from the KITTI dataset. The system estimates the trajectory of a moving vehicle by analyzing the movement of visual features across consecutive frames.
 
+## Demo Video
+
+<div align="center">
+  <video src= https://private-user-images.githubusercontent.com/72541517/356891592-06eebce6-0d7a-43f7-bf2b-d5071d9a038b.mp4?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjMzOTM3OTUsIm5iZiI6MTcyMzM5MzQ5NSwicGF0aCI6Ii83MjU0MTUxNy8zNTY4OTE1OTItMDZlZWJjZTYtMGQ3YS00M2Y3LWJmMmItZDUwNzFkOWEwMzhiLm1wND9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDA4MTElMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQwODExVDE2MjQ1NVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTgzYzc4ZDc4YjUzNjMyZDQ1ZGQ4YTc1ZjRmMjVlN2JjZWNmOWExN2VjNDJlNGEyNWU3MGVkMGEyNTdmNzgzMTImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JmFjdG9yX2lkPTAma2V5X2lkPTAmcmVwb19pZD0wIn0.n6ub4JGWSqtnhoQxOvKQr5Gey8nZ8C3dg3YYYHaiFsQ />
+</div>
+
 ## Features
 
 - Stereo depth estimation
